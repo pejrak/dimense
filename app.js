@@ -5,8 +5,8 @@
 (function() {
 
   var DIMENSE     = require("./lib/core")({
-        config : require("./config/instance"),
-        dir    : __dirname
+        config    : require("./config/instance"),
+        dir       : __dirname
       })
 
   // Listen to assigned port
