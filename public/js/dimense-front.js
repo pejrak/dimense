@@ -4,17 +4,22 @@
 
 var App = (function() {
 
-  var _scene, _camera, _renderer, _geometry, _plane, _particle_material,
-      _material, _object, _light, _ambient, _pointer, _raycaster, _previous_x
+  var _scene, _camera, _renderer, _geometry, _plane, _material, _object, 
+      _light, _ambient, _pointer, _raycaster, _previous_x, _camera_vector,
+      // GUI elements
+      _GUI, _pause_indicator
 
-  var _clickables     = []
-  var _objects        = []
-  var _timer          = {}
-  var _view_rotation  = {}
-  var MAX_ROTATION    = 0.1
-  var PI2             = Math.PI * 2
-  var CUTOFF          = 0.05
-  var DUMMY_DATA      = { 
+  var _clickables         = []
+  var _objects            = []
+  var _timer              = {}
+  var _view_rotation      = {}
+  var _default_background = 0xF8FCFC
+  var _pause_background   = 0xeeeeee
+  var MAX_ROTATION        = 0.1
+  var PI2                 = Math.PI * 2
+  var CUTOFF              = 0.05
+  var PAUSE               = false
+  var DUMMY_DATA          = { 
     fields: [
       { name: "Header title 0", key: "field_0" },
       { name: "Header title 1", key: "field_1" },
@@ -30,6 +35,11 @@ var App = (function() {
         field_0: "field 0 value 1", 
         field_1: "field 1 value 1", 
         field_2: "field 2 value 1" 
+      },
+      { 
+        field_0: "field 0 value 2", 
+        field_1: "field 1 value 2", 
+        field_2: "field 2 value 2" 
       }
     ]
   }
@@ -42,20 +52,13 @@ var App = (function() {
       new THREE.PerspectiveCamera( 
         75, window.innerWidth / window.innerHeight, 0.1, 1000 
       )
+    _camera_vector              = new THREE.Vector3(0, 0, -1)
     _renderer                   = 
       new THREE.WebGLRenderer({ antialias : true, alpha: true })
     
     _renderer.shadowMapEnabled  = true
     _renderer.shadowMapSoft     = true
     _raycaster                  = new THREE.Raycaster()
-    _particle_material          = new THREE.SpriteMaterial({
-      color: 0x000000,
-      program: function ( context ) {
-        context.beginPath()
-        context.arc( 0, 0, 0.5, 0, PI2, true )
-        context.fill()
-      }
-    })
     _pointer                    = {
       client: {
         x: 0,
@@ -77,8 +80,37 @@ var App = (function() {
   }
 
   function addListeners() {
+    var content = document.getElementById("contents")
+
     $("#contents").on("click", clickTrigger)
     $("#contents").on("mousemove", setPointerCoordinates)
+    // $(window).scroll(zoom)
+    $("body").on("keyup", trackKeys)
+
+    content.addEventListener("mousewheel", zoom, false)
+    content.addEventListener("DOMMouseScroll", zoom, false)
+  }
+
+  function trackKeys(event) {
+    var key             = event.which
+    var space_pressed   = (key === 32)
+
+    console.log("trackKeys | key, space_pressed:", key, space_pressed)
+    if (space_pressed) {
+      PAUSE = !PAUSE
+      _renderer.setClearColor(
+        PAUSE ? _pause_background : _default_background, 1
+      )
+    }
+  }
+
+  function zoom(event) {
+    var delta = Math.max(-1, Math.min(1, (event.wheelDelta || -event.detail)))
+
+    console.log("zoom | delta, event, _camera_vector:", delta, event, _camera_vector)
+
+    _camera.translateZ( - 10 * delta )
+
   }
 
   function timeIt(fn, delay) {
@@ -114,12 +146,12 @@ var App = (function() {
       x: (Math.abs(_pointer.vector.x) - 0.5) > 0,
       y: (Math.abs(_pointer.vector.y) - 0.5) > 0
     }  
-
-    //console.log("setPointerCoordinates | _pointer:", _pointer)
+    _camera_vector    = 
+      (new THREE.Vector3(0, 0, -1)).applyQuaternion(_camera.quaternion)
   }
 
   function adjustCamera() {
-    _camera.position.z = 10
+    _camera.position.z = 100
     _camera.position.y = -5
     _camera.lookAt({
       x: 0,
@@ -128,17 +160,25 @@ var App = (function() {
     })
   }
 
+  function addCenter() {
+    var geometry  = new THREE.CubeGeometry(1, 1, 1)
+    var material  = new THREE.MeshBasicMaterial({ color: "red" })
+    var mesh  = new THREE.Mesh(geometry, material)
+
+    _scene.add(mesh)
+  }
+
   function addLight() {
-    _light                      = new THREE.SpotLight(0xdfebff, 1, 50)
+    _light                      = new THREE.SpotLight(0xdfebff, 1, 200)
     _ambient                    = new THREE.AmbientLight(0x666666)
 
     _light.castShadow           = true
-    _light.shadowDarkness       = 0.2
+    _light.shadowDarkness       = 0.1
     _light.shadowCameraVisible  = true
-    _light.shadowCameraNear     = 0.01
+    _light.shadowCameraNear     = 100
 
     _light.target.position.set( 0, 0, 0 )
-    _light.position.set(1, 1, 20)
+    _light.position.set(2, 0, 100)
     _scene.add( _ambient )
     _scene.add(_light)
   }
@@ -158,32 +198,32 @@ var App = (function() {
   
   function addPoint(options) {
 
-    var mat_attrs     = {
-      color: options.color || 0xff0000,
+    var mat_attrs = {
+      color: options.color || 0xcccccc,
     }
 
     if (options.content) {
-      var dynText     = new THREEx.DynamicTexture(512,512)
-      mat_attrs.map   = dynText.texture
+      var dynText           = new THREEx.DynamicTexture(512,512)
 
-      dynText.context.font = "bold 50px Arial"
-
-      console.log("options.content:", options.content)
-      dynText.clear("red")
+      mat_attrs.map         = dynText.texture
+      dynText.context.font  = "bold 50px Arial"
+      dynText.clear("white")
         .drawText(options.content, null, 256, "black")
     }
 
-    var geometry      = new THREE.PlaneGeometry(1, 1, 10)
+    var geometry      = new THREE.PlaneGeometry(1, 1)
     var material      = new THREE.MeshLambertMaterial(mat_attrs)
     var point         = new THREE.Mesh(geometry, material)
 
     point.position.set(
-      options.position.x || 0, 
-      options.position.y || 0, 
-      options.position.z || 2
+      options.position.x, 
+      options.position.y, 
+      options.position.z
     )
-    // point.castShadow    = true
-    // point.receiveShadow = true
+
+    point.scale.x = options.size.x
+    point.scale.y = options.size.y
+    point.receiveShadow = true
 
     _clickables.push(point)
     _objects.push(point)
@@ -191,27 +231,30 @@ var App = (function() {
   }
 
   function construct(options) {
-    var data = options.data
-    var cols = options.fields.length
-    var rows = options.data.length
+    var data          = options.data
+    var cols          = options.fields.length
+    var rows          = options.data.length
+    var size          = options.size || 100
+    var point_x_size  = (size / (cols * 2))
+    var point_y_size  = (point_x_size / 2)
 
     for (var y = 0; y < rows; y++) {
       for (var x = 0; x < cols; x++) {
         var field         = options.fields[x]
         var key           = (field || {}).key
         var content       = (data[y] || {})[key]
-
-        console.log("construct | key, content:", key, content)
+        var x_pos         = (x * point_x_size * 2) - (size / 2) + point_x_size
+        var y_pos         = (y * point_y_size * 2) - (size / 2) + point_y_size
 
         addPoint({
           position: {
-            x: (x * 2) - (rows), 
-            y: (y * 2 - cols), 
-            z: 2,  
+            x: x_pos, 
+            y: y_pos, 
+            z: 0,  
           },
           size: {
-            x: 2,
-            y: 2
+            x: point_x_size,
+            y: point_y_size
           },
           content: content
         })
@@ -238,17 +281,17 @@ var App = (function() {
 
   function render() {
     requestAnimationFrame(render)
-    if (_pointer.trigger.x || _pointer.trigger.y) {
+    if ((_pointer.trigger.x || _pointer.trigger.y) && !PAUSE) {
       _camera.rotation.y -= (_pointer.vector.x * 0.01)
       _camera.rotation.x += (_pointer.vector.y * 0.01)
     }
     _renderer.render(_scene, _camera)
-    _previous_x = _pointer.vector.x
+    _previous_x = _pointer.vector.x    
   }
 
   function initialize() {
     setupScene()
-    // addPlane()
+    addCenter()
     construct(DUMMY_DATA)
     render()
     addListeners()
