@@ -1,4 +1,4 @@
-
+// !!!!!!this is from http://mrdoob.github.io/three.js/examples/canvas_interactive_cubes.html
 
       var container, stats;
       var camera, scene, renderer;
