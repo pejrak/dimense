@@ -4,8 +4,8 @@
 
 var App = (function() {
 
-  var _scene, _camera, _renderer, _geometry, _plane, _material, _object, 
-      _light, _ambient, _pointer, _raycaster, _previous_x, _camera_vector,
+  var _scene, _camera, _renderer, _geometry, _plane, _material, _object, _controls,
+      _light, _ambient, _pointer, _raycaster, _previous_x, _camera_vector, _effect,
       // GUI elements
       _GUI, _pause_indicator
 
@@ -19,6 +19,7 @@ var App = (function() {
   var PI2                 = Math.PI * 2
   var CUTOFF              = 0.05
   var PAUSE               = false
+  var VR                  = true
   var DUMMY_DATA          = { 
     fields: [
       { name: "Header title 0", key: "field_0" },
@@ -71,7 +72,14 @@ var App = (function() {
       }
     }
 
-    _renderer.setSize(window.innerWidth, window.innerHeight)
+    if (VR === true) {
+      _controls = new THREE.VRControls(_camera)
+      _effect = new THREE.VREffect(_renderer)
+      _effect.setSize(window.innerWidth, window.innerHeight)
+    }
+    else {
+      _renderer.setSize(window.innerWidth, window.innerHeight)
+    }
     _renderer.setClearColor(0xF8FCFC, 1)
     adjustCamera()
     addLight()
@@ -163,7 +171,7 @@ var App = (function() {
   function addCenter() {
     var geometry  = new THREE.CubeGeometry(1, 1, 1)
     var material  = new THREE.MeshBasicMaterial({ color: "red" })
-    var mesh  = new THREE.Mesh(geometry, material)
+    var mesh      = new THREE.Mesh(geometry, material)
 
     _scene.add(mesh)
   }
@@ -281,11 +289,18 @@ var App = (function() {
 
   function render() {
     requestAnimationFrame(render)
-    if ((_pointer.trigger.x || _pointer.trigger.y) && !PAUSE) {
-      _camera.rotation.y -= (_pointer.vector.x * 0.01)
-      _camera.rotation.x += (_pointer.vector.y * 0.01)
+
+    if ( VR === true ) {
+      _controls.update()
+      _effect.render(_scene, _camera)
     }
-    _renderer.render(_scene, _camera)
+    else {
+      if ((_pointer.trigger.x || _pointer.trigger.y) && !PAUSE) {
+        _camera.rotation.y -= (_pointer.vector.x * 0.01)
+        _camera.rotation.x += (_pointer.vector.y * 0.01)
+      }
+      _renderer.render(_scene, _camera)
+    }
     _previous_x = _pointer.vector.x    
   }
 
