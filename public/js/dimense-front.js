@@ -1,4 +1,7 @@
 // dimense.js
+/*
+  @author pejrak: 
+*/
 
 "use strict";
 
@@ -18,29 +21,45 @@ var App = (function() {
   var MAX_ROTATION        = 0.1
   var PI2                 = Math.PI * 2
   var CUTOFF              = 0.05
+  var FOV                 = 100
   var PAUSE               = false
   var VR                  = true
   var DUMMY_DATA          = { 
     fields: [
       { name: "Header title 0", key: "field_0" },
       { name: "Header title 1", key: "field_1" },
-      { name: "Header title 2", key: "field_2" }
+      { name: "Header title 2", key: "field_2" },
+      { name: "Header title 3", key: "field_3" },
+      { name: "Header title 4", key: "field_4" }
     ],
     data: [
       { 
         field_0: "field 0 value 0", 
         field_1: "field 1 value 0", 
-        field_2: "field 2 value 0" 
+        field_2: "field 2 value 0", 
+        field_3: "field 3 value 0",
+        field_4: "field 4 value 0",
       },
       { 
         field_0: "field 0 value 1", 
         field_1: "field 1 value 1", 
-        field_2: "field 2 value 1" 
+        field_2: "field 2 value 1", 
+        field_3: "field 3 value 1",
+        field_4: "field 4 value 1", 
       },
       { 
         field_0: "field 0 value 2", 
         field_1: "field 1 value 2", 
-        field_2: "field 2 value 2" 
+        field_2: "field 2 value 2", 
+        field_3: "field 3 value 2", 
+        field_4: "field 4 value 2" 
+      },
+      { 
+        field_0: "field 0 value 3", 
+        field_1: "field 1 value 3", 
+        field_2: "field 2 value 3", 
+        field_3: "field 3 value 3", 
+        field_4: "field 4 value 3" 
       }
     ]
   }
@@ -51,11 +70,11 @@ var App = (function() {
     _scene                      = new THREE.Scene()
     _camera                     = 
       new THREE.PerspectiveCamera( 
-        75, window.innerWidth / window.innerHeight, 0.1, 1000 
+        FOV, window.innerWidth / window.innerHeight, 0.1, 1000 
       )
     _camera_vector              = new THREE.Vector3(0, 0, -1)
     _renderer                   = 
-      new THREE.WebGLRenderer({ antialias : true, alpha: true })
+      new THREE.WebGLRenderer({ antialias : true })
     
     _renderer.shadowMapEnabled  = true
     _renderer.shadowMapSoft     = true
@@ -73,8 +92,8 @@ var App = (function() {
     }
 
     if (VR === true) {
-      _controls = new THREE.VRControls(_camera)
-      _effect = new THREE.VREffect(_renderer)
+      _controls   = new THREE.VRControls(_camera)
+      _effect     = new THREE.VREffect(_renderer)
       _effect.setSize(window.innerWidth, window.innerHeight)
     }
     else {
@@ -102,6 +121,7 @@ var App = (function() {
   function trackKeys(event) {
     var key             = event.which
     var space_pressed   = (key === 32)
+    var z_pressed       = (key === 90)
 
     console.log("trackKeys | key, space_pressed:", key, space_pressed)
     if (space_pressed) {
@@ -109,6 +129,9 @@ var App = (function() {
       _renderer.setClearColor(
         PAUSE ? _pause_background : _default_background, 1
       )
+    }
+    else if (z_pressed) { // z
+      _controls.zeroSensor();
     }
   }
 
@@ -159,13 +182,16 @@ var App = (function() {
   }
 
   function adjustCamera() {
-    _camera.position.z = 100
-    _camera.position.y = -5
-    _camera.lookAt({
-      x: 0,
-      y: 0,
-      z: 0
-    })
+    // _camera.position.z = 100
+    // _camera.position.y = -5
+    // _camera.lookAt({
+    //   x: 0,
+    //   y: 0,
+    //   z: 0
+    // })
+  
+    _camera.position.z = .1
+    _camera.lookAt( new THREE.Vector3( 0 , 0 , -1 ) )
   }
 
   function addCenter() {
@@ -229,9 +255,13 @@ var App = (function() {
       options.position.z
     )
 
-    point.scale.x = options.size.x
-    point.scale.y = options.size.y
+    point.scale.x       = options.size.x
+    point.scale.y       = options.size.y
+    point.rotation.x    = options.rotation.x
+    point.rotation.y    = options.rotation.y
+    point.rotation.z    = options.rotation.z
     point.receiveShadow = true
+
 
     _clickables.push(point)
     _objects.push(point)
@@ -243,16 +273,18 @@ var App = (function() {
     var cols          = options.fields.length
     var rows          = options.data.length
     var size          = options.size || 100
+    var start         = { x: - (size / 2), y: (size / 2) }
     var point_x_size  = (size / (cols * 2))
     var point_y_size  = (point_x_size / 2)
 
     for (var y = 0; y < rows; y++) {
       for (var x = 0; x < cols; x++) {
-        var field         = options.fields[x]
-        var key           = (field || {}).key
-        var content       = (data[y] || {})[key]
-        var x_pos         = (x * point_x_size * 2) - (size / 2) + point_x_size
-        var y_pos         = (y * point_y_size * 2) - (size / 2) + point_y_size
+
+        var field     = options.fields[x]
+        var key       = (field || {}).key
+        var content   = (data[y] || {})[key]
+        var x_pos     = (x * point_x_size * 2) + start.x + point_x_size
+        var y_pos     = start.y - ((y * point_y_size * 2) + point_y_size)
 
         addPoint({
           position: {
@@ -264,28 +296,18 @@ var App = (function() {
             x: point_x_size,
             y: point_y_size
           },
+          rotation: {
+            z: 0,
+            y: - (x_pos / (size)),
+            x: y_pos / (size)
+          },
           content: content
         })
       }
     }
   }
 
-  function importObject(path, done) {
-    var loader = new THREE.JSONLoader()
 
-    loader.load(path, function (mesh) {
-      var geometry          = new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-      _object               = new THREE.Mesh(mesh, geometry)
-      _object.position.x    = 0
-      _object.position.y    = 0
-      _object.position.z    = 0
-      _object.castShadow    = true
-      _object.receiveShadow = true
-      _scene.add(_object)
-
-      return done()
-    })
-  }
 
   function render() {
     requestAnimationFrame(render)
